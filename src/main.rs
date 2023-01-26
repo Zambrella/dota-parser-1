@@ -1,23 +1,45 @@
 mod game_time;
+mod kills;
 mod parse_game_time;
 mod parse_hero_name;
-mod parse_subject;
+mod pudge;
 
-use ::std::env;
 use ::std::fs;
 use ::std::time::Duration;
+use clap::Parser;
 use game_time::DurationExt;
+use kills::parse_subject;
 use parse_game_time::parse_game_time;
-use parse_subject::parse_subject;
 use std::collections::HashMap;
 
-fn main() {
-    let args: Vec<String> = env::args().skip(1).collect();
-    let data = fs::read_to_string(&args[0]).expect("Failed to read file");
-    parse_combat_log(&data);
+#[derive(Parser)]
+struct Args {
+    #[arg(short, long)]
+    path: std::path::PathBuf,
+
+    // allowed values: kills, pudge
+    #[arg(short, long)]
+    action: String,
 }
 
-fn parse_combat_log(data: &str) -> () {
+fn main() {
+    let args = Args::parse();
+    let data = fs::read_to_string(&args.path).expect("Failed to read file");
+    if &args.action.to_lowercase() == "kills" {
+        parse_kills_and_deaths(&data);
+    }
+
+    if &args.action.to_lowercase() == "pudge" {
+        parse_pudge_hooks(&data);
+    }
+}
+
+fn parse_pudge_hooks(data: &str) -> () {
+    let result = pudge::get_hook_percentage::get_hook_percentage(data);
+    println!("Percentage of hooks hit: {:.2}%", result * 100.);
+}
+
+fn parse_kills_and_deaths(data: &str) -> () {
     let lines = data.split("\n").into_iter();
     let mut kills: HashMap<String, u8> = HashMap::new();
     let mut deaths: HashMap<String, u8> = HashMap::new();
@@ -25,18 +47,14 @@ fn parse_combat_log(data: &str) -> () {
         // TODO: We really only want to split the string once. We could then pass the list to the
         // parsing functions
 
-        let subject_and_killer = match parse_subject(line) {
+        let subject_and_killer = match parse_subject::parse_subject(line) {
             Some((subject, killer)) => (subject, killer),
             None => continue,
         };
         let subject = subject_and_killer.0;
         let killer = subject_and_killer.1;
 
-        let just_time = match line.split_once(" ") {
-            Some((a, _)) => a.trim(),
-            None => continue,
-        };
-        let time = parse_game_time(just_time);
+        let time = parse_game_time(line);
         let duration = match time {
             Ok(time) => Duration::from_game_time(&time),
             Err(_) => continue,

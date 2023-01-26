@@ -4,8 +4,12 @@ use std::fmt;
 
 use crate::game_time::GameTime;
 
-/// Expected format: "[HH:MM:SS:ms]"
 pub fn parse_game_time(time: &str) -> Result<GameTime, ParseError> {
+    let just_time = match time.split_once(" ") {
+        Some((a, _)) => a.trim(),
+        None => return Err(ParseError),
+    };
+
     let re = Regex::new(r"\[(.+)\]");
     let regex = match re {
         Ok(regex) => regex,
@@ -13,7 +17,7 @@ pub fn parse_game_time(time: &str) -> Result<GameTime, ParseError> {
             return Err(ParseError);
         }
     };
-    let capture = regex.captures(time);
+    let capture = regex.captures(just_time);
     let unformatted_time = match capture {
         Some(cap) => match cap.get(1) {
             Some(time) => time.as_str(),
